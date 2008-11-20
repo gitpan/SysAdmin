@@ -1,0 +1,14 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/SysAdmin.t
+lib/SysAdmin.pm
+lib/SysAdmin/DBD.pm
+lib/SysAdmin/DBD/MySQL.pm
+lib/SysAdmin/DBD/Pg.pm
+lib/SysAdmin/DBD/SQLite.pm
+lib/SysAdmin/Expect.pm
+lib/SysAdmin/Expect/Occam
+lib/SysAdmin/SMTP.pm
+lib/SysAdmin/SNMP.pm
