@@ -1,0 +1,19 @@
+--- #YAML:1.0
+name:                SysAdmin
+version:             0.07
+abstract:            Parent class for SysAdmin wrapper modules.
+license:             ~
+author:              
+    - Miguel A. Rivera <marr@cpan.org>
+generated_by:        ExtUtils::MakeMaker version 6.44
+distribution_type:   module
+requires:     
+    DBI:                           
+    Expect:                        
+    IO::File:                      
+    MIME::Lite:                    
+    Net::SMTP:                     
+    Net::SNMP:                     
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

@@ -1,5 +1,25 @@
 Revision history for Perl extension SysAdmin.
 
+0.07  Tue Nov 25
+	- Added METHOD documentation. Added hash to declare variables in SMTP.pm
+	
+0.06  Mon Nov 24
+	- Added "fetchActiveInterfaces" to SNMP.pm. Added "close" to DB.pm
+	
+0.05  Mon Nov 24
+	- Added File.pm, which supports working with IO::File
+	
+0.04  Sun Nov 23
+	- Added MySQL, PostgreSQL, SQLite support directly to DB.pm, eliminating
+	  the DB directory containing.
+	- Eliminated Interfaces.pm by integrating subs directly to SNMP.pm
+
+0.03  Sat Nov 22
+	- Refined documentation
+
+0.02  Fri Nov 21
+	- Added named parameters to "new"
+
 0.01  Thu Nov 20 11:26:50 2008
 	- original version; created by h2xs 1.23 with options
 		-XA -n SysAdmin

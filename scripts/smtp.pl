@@ -3,12 +3,14 @@ use strict;
 
 use SysAdmin::SMTP;
 
-my $object = new SysAdmin::SMTP("localhost");
+my $smtp_object = new SysAdmin::SMTP("localhost");
 
-
-my $from_address = qq("Test Sender" <test_sender\@test.com>);
+my $from_address = qq("Test User" <test\@test.org>);
 my $subject = "Test Subject";
 my $message_body = "Test Message";
-my @email_recipients = ("test_receiver\@test.com");
+my $email_recipients = ["test\@test.org"];
 
-$object->sendEmail($from_address,$subject,$message_body,@email_recipients); 
+$smtp_object->sendEmail("FROM"    => "$from_address",
+						"TO"      => "$email_recipients",
+						"SUBJECT" => "$subject",
+						"BODY"    => "$message_body");

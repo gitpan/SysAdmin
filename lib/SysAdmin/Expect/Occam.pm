@@ -162,8 +162,8 @@ SysAdmin::Expect::Occam - Perl Expect class.wrapper module
   
   my $expect_object = new SysAdmin::Expect::Occam(SERVER                 => "localhost",
                                                   COMMUNITY              => "public",
-					          TELNET_PASSWORD        => "occam",
-					          TELNET_ENABLE_PASSWORD => "razor");
+                                                  TELNET_PASSWORD        => "pass",
+                                                  TELNET_ENABLE_PASSWORD => "pass");
 
 =head1 DESCRIPTION
 

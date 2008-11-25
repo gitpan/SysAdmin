@@ -4,11 +4,17 @@ MANIFEST
 README
 t/SysAdmin.t
 lib/SysAdmin.pm
-lib/SysAdmin/DBD.pm
-lib/SysAdmin/DBD/MySQL.pm
-lib/SysAdmin/DBD/Pg.pm
-lib/SysAdmin/DBD/SQLite.pm
+lib/SysAdmin/DB.pm
 lib/SysAdmin/Expect.pm
-lib/SysAdmin/Expect/Occam
+lib/SysAdmin/Expect/Occam.pm
+lib/SysAdmin/File.pm
 lib/SysAdmin/SMTP.pm
 lib/SysAdmin/SNMP.pm
+scripts/db/dbd_test.db
+scripts/dbd_mysql.pl
+scripts/dbd_pg.pl
+scripts/dbd_sqlite.pl
+scripts/file.pl
+scripts/smtp.pl
+scripts/snmp.pl
+META.yml                                 Module meta-data (added by MakeMaker)

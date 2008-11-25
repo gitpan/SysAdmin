@@ -4,6 +4,7 @@ use strict;
 
 use SysAdmin;
 use Expect;
+use Carp;
 
 use vars qw(@ISA $VERSION);
 
@@ -43,6 +44,9 @@ sub new {
 	};
 	    
 	bless $self, $class;
+	
+	Carp::croak "No OID supplied" unless $self->{_telnetServer};
+	
 	return $self;
 }
 

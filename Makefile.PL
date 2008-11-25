@@ -6,15 +6,12 @@ WriteMakefile(
     NAME              => 'SysAdmin',
     VERSION_FROM      => 'lib/SysAdmin.pm', # finds $VERSION
     PREREQ_PM => {
-    	'DBI' => 1.40,
-	'DBD::Pg' => 0,
-	'DBD::SQLite' => 0,
-	'DBD::MySQL' => 0,
-	'MIME::Lite' => 0,
-	'Net::SMTP' => 0,
-	'Expect' => 0,
-	'Net::SNMP' => 0,
-	'Filter::Util::Call' => 0,
+    	'DBI' => '',
+	'MIME::Lite' => '',
+	'Net::SMTP' => '',
+	'Expect' => '',
+	'Net::SNMP' => '',
+	'IO::File' => '',
     },
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/SysAdmin.pm', # retrieve abstract from module
