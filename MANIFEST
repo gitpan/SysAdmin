@@ -12,6 +12,7 @@ lib/SysAdmin/SMTP.pm
 lib/SysAdmin/SNMP.pm
 scripts/db/dbd_test.db
 scripts/dbd_mysql.pl
+scripts/dbd_oracle.pl
 scripts/dbd_pg.pl
 scripts/dbd_sqlite.pl
 scripts/file.pl

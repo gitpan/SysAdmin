@@ -83,9 +83,9 @@ SysAdmin::SMTP - Perl Net::SMTP class wrapper module.
 	my $email_recipients = ["test_receiver\@test.com"];
 	
 	$smtp_object->sendEmail("FROM"    => "$from_address",
-                            "TO"      => "$email_recipients",
-                            "SUBJECT" => "$subject",
-                            "BODY"    => "$message_body");
+                                "TO"      => "$email_recipients",
+                                "SUBJECT" => "$subject",
+                                "BODY"    => "$message_body");
 	
 
 =head1 DESCRIPTION
@@ -112,9 +112,9 @@ variable to use.
 	my $email_recipients = ["test_receiver\@test.com"];
 	
 	$smtp_object->sendEmail("FROM"    => "$from_address",
-                            "TO"      => "$email_recipients",
-                            "SUBJECT" => "$subject",
-                            "BODY"    => "$message_body");
+                                "TO"      => "$email_recipients",
+                                "SUBJECT" => "$subject",
+                                "BODY"    => "$message_body");
 														
 
 =head1 SEE ALSO

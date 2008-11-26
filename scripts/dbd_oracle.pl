@@ -1,24 +1,14 @@
 #!/usr/local/bin/perl
 use strict;
 
-use lib "/Users/migrivera/scripts/packages/SysAdmin-0.07/lib";
-
 use SysAdmin::DB;
 
-my $db = "dbd_test";
-my $username = "dbd_test";
-my $password = "dbd_test";
-my $host = "localhost";
-my $port = '5432';
-my $driver = "Pg";
-
-=pod
-
-create table status(
-id serial primary key,
-description varchar(25) not null);
-
-=cut
+my $db = "soverdb";
+my $username = "fms_bdgav";
+my $password = "fms_bdgav01p";
+my $host = "192.9.200.125";
+my $port = '1521';
+my $driver = "Oracle";
 
 my $dbd_object = new SysAdmin::DB("DB"          => "$db",
                                   "DB_USERNAME" => "$username",
@@ -27,7 +17,7 @@ my $dbd_object = new SysAdmin::DB("DB"          => "$db",
                                   "DB_PORT"     => "$port",
                                   "DB_DRIVER"   => "$driver");
 
-my $select_table = qq(select id,description from status);
+my $select_table = qq(select CODALERT,NEAFFECTED from NXC_ALERTDETAIL);
 
 my $table_results = $dbd_object->fetchTable("$select_table");
 
@@ -38,7 +28,7 @@ foreach my $row (@$table_results) {
 	print "DB_ID $db_id, DB_DESCRIPTION $db_description\n";
 	
 }
-
+=pod
 my $insert_table = qq(insert into status (description) values (?));
 
 my $last_id = $dbd_object->insertData("$insert_table",["First"]);
@@ -64,4 +54,4 @@ my $fetch_last_update = qq(select description
 my $update_results = $dbd_object->fetchRow("$fetch_last_update");
 
 print "Last Update: $update_results\n";
-
+=cut

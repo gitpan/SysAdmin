@@ -4,9 +4,9 @@ use strict;
 use DBI;
 use SysAdmin::DB;
 
-my $db = "dbdtest";
-my $username = "dbdtest";
-my $password = "dbdtest";
+my $db = "dbd_test";
+my $username = "dbd_test";
+my $password = "dbd_test";
 my $host = "localhost";
 my $port = '3306';
 my $driver = "mysql";
@@ -39,9 +39,8 @@ foreach my $row (@$table_results) {
 }
 
 my $insert_table = qq(insert into status (description) values (?));
-my @insert_table_values = ("First");
 
-my $last_id = $dbd_object->insertData("$insert_table",\@insert_table_values);
+my $last_id = $dbd_object->insertData("$insert_table",["First"]);
 
 print "Last ID $last_id\n";
 
@@ -54,9 +53,8 @@ my $insert_results = $dbd_object->fetchRow("$fetch_last_insert");
 print "Last Insert: $insert_results\n";
 
 my $update_table = qq(update status set description = ? where description = ?);
-my @update_table_values = ("Second","First");
 
-$dbd_object->updateData("$update_table",\@update_table_values);
+$dbd_object->updateData("$update_table",["Second","First"]);
 
 my $fetch_last_update = qq(select description 
 	                   from status 

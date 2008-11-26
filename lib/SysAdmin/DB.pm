@@ -10,7 +10,7 @@ use DBI;
 use vars qw(@ISA $VERSION);
 
 our @ISA = qw(SysAdmin);    # inherits from SysAdmin
-our $VERSION = 0.05;
+our $VERSION = 0.06;
 
 sub new {
 	my $class = shift;
@@ -52,6 +52,9 @@ sub new {
 	}
 	if($check_db_driver_to_use eq "sqlite"){
 		$db_driver_to_use = "SQLite";
+	}
+	if($check_db_driver_to_use eq "oracle"){
+		$db_driver_to_use = "Oracle";
 	}
 	
 	my $self = {
@@ -96,6 +99,9 @@ sub fetchTable {
 			if($db_driver eq "SQLite"){
 				$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 1 }) or die "Could not connect to $db_database";
 			}
+			if($db_driver eq "Oracle"){
+				$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password);
+			}
 			else{
 				## MySQL and PostgreSQL use similar syntax
 				$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;","$db_username","$db_password") or die "Could not connect to $db_database";
@@ -111,11 +117,9 @@ sub fetchTable {
 			if($db_driver ne "SQLite"){
 				$dbh->disconnect;
 			}
-			
-			return $table;
 		}
 	}
-
+	return $table;
 }
 
 sub fetchRow {
@@ -147,6 +151,9 @@ sub fetchRow {
 			if($db_driver eq "SQLite"){
 				$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 1 }) or die "Could not connect to $db_database";
 			}
+			if($db_driver eq "Oracle"){
+				$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password);
+			}
 			else{
 				## MySQL and PostgreSQL use similar syntax
 				$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;","$db_username","$db_password") or die "Could not connect to $db_database";
@@ -157,10 +164,9 @@ sub fetchRow {
 			if($db_driver ne "SQLite"){
 				$dbh->disconnect;
 			}
-			
-			return $row;
 		}
 	}
+	return $row;
 }
 
 ## Find better name
@@ -194,26 +200,37 @@ sub _manipulateData {
 				##
 				
 				my $dbh = undef;
+				## Return ID of last insert
+				my $last_id_inserted = undef;
+				my $rv = undef;
 				
 				if($db_driver eq "SQLite"){
-					$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 1 }) or die "Could not connect to $db_database";
+					$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 0 }) or die "Could not connect to $db_database";
+				}
+				if($db_driver eq "Oracle"){
+					$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password,{ AutoCommit => 1 });
 				}
 				else{
 					## MySQL and PostgreSQL use similar syntax
-					$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;","$db_username","$db_password") or die "Could not connect to $db_database";
+					$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;",
+						             "$db_username","$db_password",
+							     { RaiseError => 0, AutoCommit => 1 }) or die "Could not connect to $db_database";
 				}
+				eval {
+					my $sth = $dbh->prepare($db_insert) or die "Couldn't prepare statement!!!";
+					$sth->execute(@$attributes_ref) or die "Cannot execute statement!!!";
+					
+					if($db_insert =~ /insert into (\w+)\s.*/i){
+						$last_id_inserted = &_fetchLastId($self,$dbh,$1);
+					}
+					
+					$sth->finish;
+				};
 				
-				my $sth = $dbh->prepare($db_insert) or die "Couldn't prepare statement!!!";
-				$sth->execute(@$attributes_ref) or die "Cannot execute statement!!!";
-				
-				## Return ID of last insert
-				my $last_id_inserted = undef;
-				
-				if($db_insert =~ /insert into (\w+)\s.*/i){
-					$last_id_inserted = &_fetchLastId($self,$dbh,$1);
+				if ($@) {
+					$dbh->rollback();
+					die $@;
 				}
-				
-				$sth->finish;
 				
 				if($db_driver ne "SQLite"){
 					$dbh->disconnect;
@@ -262,7 +279,9 @@ sub _fetchLastId {
 	if($db_driver eq "SQLite"){
 		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
 	}
-	
+	if($db_driver eq "Oracle"){
+		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
+	}
 	if($db_driver ne "SQLite"){
 		$dbh->disconnect;
 	}
@@ -291,101 +310,110 @@ SysAdmin::DB - Perl DBI/DBD wrapper module..
 
 =head1 SYNOPSIS
 
-    ## Example using PostgreSQL Database
+  ## Example using PostgreSQL Database
 	
-	use SysAdmin::DB;
+  use SysAdmin::DB;
 	
-	my $db = "dbd_test";
-	my $username = "dbd_test";
-	my $password = "dbd_test";
-	my $host = "localhost";
-	my $port = '5432';
-	my $driver = "pg"; ## Change to "mysql" for MySQL connection
+  my $db = "dbd_test";
+  my $username = "dbd_test";
+  my $password = "dbd_test";
+  my $host = "localhost";
+  my $port = '5432';
+  my $driver = "pg"; ## Change to "mysql" for MySQL connection
 	
-	### Database Table
-	##
-	# create table status(
-	# id serial primary key,
-	# description varchar(25) not null);
-	##
-	###
+  ### Database Table
+  ##
+  # create table status(
+  # id serial primary key,
+  # description varchar(25) not null);
+  ##
+  ###
 	
-	my $dbd_object = new SysAdmin::DB("DB"          => "$db",
-                                      "DB_USERNAME" => "$username",
-                                      "DB_PASSWORD" => "$password",
-                                      "DB_HOST"     => "$host",
-                                      "DB_PORT"     => "$port",
-                                      "DB_DRIVER"   => "$driver");
-	###
-	## DB and DB_DRIVER are always required!
-	###
+  my $dbd_object = new SysAdmin::DB("DB"          => "$db",
+                                    "DB_USERNAME" => "$username",
+                                    "DB_PASSWORD" => "$password",
+                                    "DB_HOST"     => "$host",
+                                    "DB_PORT"     => "$port",
+                                    "DB_DRIVER"   => "$driver");
+  ###
+  ## DB and DB_DRIVER are always required!
+  ###
 	
-	###
-	## For databases that need username and password (MySQL, PostgreSQL),
-	## DB_USERNAME and DB_PASSWORD are also required
-	###
+  ###
+  ## For databases that need username and password (MySQL, PostgreSQL),
+  ## DB_USERNAME and DB_PASSWORD are also required
+  ###
 	
-	### For SQLite, simply declare DB and DB_DRIVER, example:
-	##
-	## my $db = "/tmp/dbd_test.db";
-	## my $dbd_object = new SysAdmin::DB("DB"       => "$db",
-	##                                   "DB_DRIVER => "sqlite");
-	##
-	###
-	
-	
-	###
-	## Work with "$dbd_object"
-	###
-	
-	## Insert Data
-	
-	## SQL Insert statement
-	my $insert_table = qq(insert into status (description) values (?));
-	
-	## Insert Arguments, to subsitute "?"
-	my @insert_table_values = ("DATA");
-	
-	## Insert data with "insertData"
-	
-	$dbd_object->insertData("$insert_table",\@insert_table_values);
-	
-	## By declaring a variable, it returns the last inserted ID
-	
-	my $last_insert_id = $dbd_object->insertData("$insert_table",\@insert_table_values);
+  ### For SQLite, simply declare DB and DB_DRIVER, example:
+  ##
+  ## my $db = "/tmp/dbd_test.db";
+  ## my $dbd_object = new SysAdmin::DB("DB"       => "$db",
+  ##                                   "DB_DRIVER => "sqlite");
+  ##
+  ###
 	
 	
-	## Select Table Data
+  ###
+  ## Work with "$dbd_object"
+  ###
 	
-	## SQL select statement
-	my $select_table = qq(select id,description from status);
+  ### Insert Data
 	
-	## Fetch table data with "fetchTable"
-	my $table_results = $dbd_object->fetchTable("$select_table");
+  ## SQL Insert statement
+  my $insert_table = qq(insert into status (description) values (?));
 	
-	## Extract table data from $table_results array reference
-	foreach my $row (@$table_results) {
+  ## Insert Arguments, to subsitute "?"
+  my @insert_table_values = ("DATA");
 	
-		my ($db_id,$db_description) = @$row;
+  ## Insert data with "insertData"
 	
-		## Print Results
-		print "DB_ID $db_id, DB_DESCRIPTION $db_description\n";
+  $dbd_object->insertData("$insert_table",\@insert_table_values);
 	
-	}
+  ## By declaring a variable, it returns the last inserted ID
 	
+  my $last_insert_id = $dbd_object->insertData("$insert_table",\@insert_table_values);
 	
-	## Select Table Row
+  ## The insertData Method could also be expressed the following ways
+  
+  my $insert_table_values = ["Data"];
+  $dbd_object->insertData("$insert_table",$insert_table_values);
+  
+  # or
+  
+  $dbd_object->insertData("$insert_table",["Data"]);
 	
-	## SQL Stament to fetch last insert
-	my $fetch_last_insert = qq(select description 
-                               from status 
-                               where id = $last_insert_id);
+
+  ### Select Table Data
 	
-	## Fetch table row with "fetchRow"
-	my $row_results = $object->fetchRow("$fetch_last_insert");
+  ## SQL select statement
+  my $select_table = qq(select id,description from status);
+	
+  ## Fetch table data with "fetchTable"
+  my $table_results = $dbd_object->fetchTable("$select_table");
+	
+  ## Extract table data from $table_results array reference
+  foreach my $row (@$table_results) {
+	
+	my ($db_id,$db_description) = @$row;
 	
 	## Print Results
-	print "Last Insert: $row_results\n";
+	print "DB_ID $db_id, DB_DESCRIPTION $db_description\n";
+	
+  }
+	
+	
+  ### Select Table Row
+	
+  ## SQL Stament to fetch last insert
+  my $fetch_last_insert = qq(select description 
+                             from status 
+                             where id = $last_insert_id);
+	
+  ## Fetch table row with "fetchRow"
+  my $row_results = $object->fetchRow("$fetch_last_insert");
+	
+  ## Print Results
+  print "Last Insert: $row_results\n";
 				    
 
 =head1 DESCRIPTION
