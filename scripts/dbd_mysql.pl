@@ -19,12 +19,13 @@ description varchar(25) not null);
 
 =cut
 
-my $dbd_object = new SysAdmin::DB("DB"          => "$db",
-                                  "DB_USERNAME" => "$username",
-                                  "DB_PASSWORD" => "$password",
-                                  "DB_HOST"     => "$host",
-                                  "DB_PORT"     => "$port",
-                                  "DB_DRIVER"   => "$driver");
+my $dbd_object = new SysAdmin::DB(db          => $db,
+                                  db_username => $username,
+                                  db_password => $password,
+                                  db_host     => $host,
+                                  db_port     => $port,
+                                  db_driver   => $driver);
+
 
 my $select_table = qq(select id,description from status);
 

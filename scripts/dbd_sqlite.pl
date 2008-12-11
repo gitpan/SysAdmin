@@ -14,8 +14,8 @@ description varchar(25) not null);
 
 =cut
 
-my $dbd_object = new SysAdmin::DB("DB"        => "$db",
-                                  "DB_DRIVER" => "$driver");
+my $dbd_object = new SysAdmin::DB(db        => $db,
+                                  db_driver => $driver);
 
 my $select_table = qq(select id,description from status);
 

@@ -1,7 +1,12 @@
 Revision history for Perl extension SysAdmin.
 
-0.08  Tue Nov 26
-	- Added eval to DBI transactions (inserts). Testing DBD::Oracle.
+0.09  Fri Nov 28
+	- Added more test conditionals to DBI for INSERT/UPDATE/DELETE. Added more
+	  Carps for error messages.
+	  
+0.08  Wed Nov 26
+	- Added eval to DBI transactions (inserts). Testing DBD::Oracle. Removed
+	  "use 5.008005".
 
 0.07  Tue Nov 25
 	- Added METHOD documentation. Added hash to declare variables in SMTP.pm

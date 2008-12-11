@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               SysAdmin
-version:            0.08
+version:            0.11
 abstract:           Parent class for SysAdmin wrapper modules.
 author:
     - Miguel A. Rivera <marr@cpan.org>

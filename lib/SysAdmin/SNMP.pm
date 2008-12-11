@@ -1,75 +1,55 @@
 
 package SysAdmin::SNMP;
-use strict;
 
-use SysAdmin;
+use Moose;
 use Net::SNMP;
-use Carp;
+extends 'SysAdmin';
 
-use vars qw(@ISA $VERSION);
+our $VERSION = 0.09;
 
-our @ISA = qw(SysAdmin);    # inherits from SysAdmin
-our $VERSION = 0.04;
+has 'ip'        => (isa => 'Str', is => 'rw', required => 1, default => "localhost");
+has 'community' => (isa => 'Str', is => 'rw', required => 1, default => "public");
+has 'port'      => (isa => 'Str', is => 'rw', required => 0, default => 161);
 
-sub new {
-	my $class = shift;
+__PACKAGE__->meta->make_immutable;
+
+
+
+sub _create_snmp_session {
 	
-	my %attr = @_;
+	my ($self) = @_;
 	
-	###
-	## Supported Attribute List
-	#
-	# IP = Network Element to interact with.
-	# COMMUNITY = SNMP Community string.
-	#
-	##
-	###
-	
-	my $community_string = $attr{"COMMUNITY"};
-	
-	if(!$community_string){
-		$community_string = "public";
-		print "COMMUNITY Key variable is empty, using default (public)!";
+	my ($session, $error) = Net::SNMP->session(Hostname  => $self->ip(), 
+		                                       Community => $self->community(),
+											   Port      => $self->port());
+	if (!defined($session)) {
+		Carp::croak sprintf("## WARNING ##\n%s", $error);
+		exit 1;
 	}
 	
-	my $self = {
-		_ipAddress      => $attr{"IP"},
-		_snmpCommunity  => $community_string
-	};
-	    
-	bless $self, $class;
-	
-	Carp::croak "No IP address supplied" unless $self->{_ipAddress};
-	
-	return $self;
+	return $session;
 }
 
 sub snmpwalk {
 	
 	my ($self, $oid_to_get) = @_;
 	
-	Carp::croak "No OID supplied" unless $oid_to_get;
+	Carp::croak "## WARNING ##\nNo OID supplied!" unless $oid_to_get;
 	
-	my $hostname = $self->{_ipAddress};
-	my $community = $self->{_snmpCommunity};
+	my $session = SysAdmin::SNMP::_create_snmp_session($self);
 	
-	my ($session, $error) = Net::SNMP->session(Hostname => $hostname, Community => $community);
-	
-	my $response = "NA";
+	my $response = undef;
 	my %hash_to_return_from_sub = ();
 	
-	if (!defined($session)) { 
-		print("## Cant open device.\n");
-		exit 1;
-	}
 	if (!defined($response = $session->get_table($oid_to_get))) {
-		printf("## $oid_to_get %s\n", $session->error);
+		Carp::croak sprintf("## WARNING ##\n%s\n", $session->error);
 		$session->close;
 		exit 1;
 	}
 	
+	## Test $response for HASH
 	if (ref($response) ne 'HASH') {
-		die "Expected a hash reference, not $response\n";
+		Carp::croak "## WARNING ##\nExpected a hash reference, not $response\n";
 	}
 	
 	foreach my $key (sort keys %$response) {
@@ -95,27 +75,20 @@ sub snmpget {
 	
 	Carp::croak "No OID supplied" unless $oid_to_get;
 	
-	my $hostname = $self->{_ipAddress};
-	my $community = $self->{_snmpCommunity};
+	my $session = SysAdmin::SNMP::_create_snmp_session($self);
 	
-	my ($session, $error) = Net::SNMP->session(Hostname => $hostname, Community => $community);
-	
-	my $response = "NA";
+	my $response = undef;
 	my $scalar_to_return_from_sub = undef;
 	
-	if (!defined($session)) { 
-		print("## Cant open device.\n");
-		exit 1;
-	}
 	if (!defined($response = $session->get_request($oid_to_get))) {
-		printf("## %s\n", $session->error);
+		Carp::croak sprintf("## WARNING ##\n%s\n", $session->error);
 		$session->close;
 		exit 1;
 	}
 	
 	## Test $response for HASH
 	if (ref($response) ne 'HASH') {
-		die "Expected a hash reference, not $response\n";
+		Carp::croak "## WARNING ##\nExpected a hash reference, not $response\n";
 	}
 
 	$scalar_to_return_from_sub = $response->{$oid_to_get};
@@ -129,83 +102,78 @@ sub fetchInterfaces {
 	
 	my ($self) = @_;
 	
-	my $hostname = $self->{_ipAddress};
-	my $community = $self->{_snmpCommunity};
-	
+	my $ifIndex = '.1.3.6.1.2.1.2.2.1.1';
 	my $ifDescr = '.1.3.6.1.2.1.2.2.1.2';
 	my $ifType = '.1.3.6.1.2.1.2.2.1.3';
 	my $ifAdminStatus = '.1.3.6.1.2.1.2.2.1.7';
 	my $ifOperStatus = '.1.3.6.1.2.1.2.2.1.8';
 	my $ifAlias = '.1.3.6.1.2.1.31.1.1.1.18';
 	
-	my $snmp_object = new SysAdmin::SNMP(IP        => "$hostname",
-                                             COMMUNITY => "$community");
+	my $session = SysAdmin::SNMP::_create_snmp_session($self);
 	
-	my $snmp_oid_to_check = $ifDescr . ".1";
-	my $check_for_valid_string = $snmp_object->checkValidOID("$snmp_oid_to_check");
+	my $ifIndex_ref = SysAdmin::SNMP::snmpwalk($self,$ifIndex);
 	
-	if($check_for_valid_string eq "VALID"){
+	my %interfaces_to_return = ();
+	
+	foreach my $key (sort keys %$ifIndex_ref) {
 		
-		my $ifDescr_ref = $snmp_object->snmpwalk("$ifDescr");
-		my $ifType_ref = $snmp_object->snmpwalk("$ifType");
-		my $ifAdminStatus_ref = $snmp_object->snmpwalk("$ifAdminStatus");
-		my $ifOperStatus_ref = $snmp_object->snmpwalk("$ifOperStatus");
+		my $ifDescr_index       = "$ifDescr.$key";
+		my $ifType_index        = "$ifType.$key";
+		my $ifAdminStatus_index = "$ifAdminStatus.$key";
+		my $ifOperStatus_index  = "$ifOperStatus.$key";
+		my $ifAlias_index       = "$ifAlias.$key";
+	
+		my $ifDescr_response       = undef;
+		my $ifType_response        = undef;
+		my $ifAdminStatus_response = undef;
+		my $ifOperStatus_response  = undef;
+		my $ifAlias_response       = undef;
 		
-		my $ifAlias_check = $ifAlias . ".1";
-		my $ifAlias_validity = $snmp_object->checkValidOID("$ifAlias_check");
+		$interfaces_to_return{$key}{'ifIndex'} = $key;
 		
-		my $ifAlias_ref = undef;
-		my $ifAlias_validity_result = undef;
-		
-		if($ifAlias_validity eq "VALID"){
-			$ifAlias_ref = $snmp_object->snmpwalk("$ifAlias");
-			$ifAlias_validity_result = 1;
+		if (defined( $ifDescr_response = $session->get_request($ifDescr_index)) ){
+			$interfaces_to_return{$key}{'ifDescr'} = $ifDescr_response->{$ifDescr_index};
 		}
-		
-		my %interfaces_to_return = ();
-		
-		foreach my $key (sort keys %$ifDescr_ref){
+		else{
+			$interfaces_to_return{$key}{'ifDescr'} = "N/A";
+		}
+		if (defined( $ifType_response = $session->get_request($ifType_index)) ){
+			$interfaces_to_return{$key}{'ifType'} = $ifType_response->{$ifType_index};
 			
-			if($$ifDescr_ref{$key} =~ /(\d)/){
-				$interfaces_to_return{$key}{'id'} = $key;
-				$interfaces_to_return{$key}{'ifDescr'} = $$ifDescr_ref{$key};
-				$interfaces_to_return{$key}{'ifType'} = $$ifType_ref{$key};
-				$interfaces_to_return{$key}{'ifAdminStatus'} = $$ifAdminStatus_ref{$key};
-				$interfaces_to_return{$key}{'ifOperStatus'} = $$ifOperStatus_ref{$key};
-				if($ifAlias_validity_result){
-					$interfaces_to_return{$key}{'ifAlias'} = $$ifAlias_ref{$key};
-				}
-				else{
-					$interfaces_to_return{$key}{'ifAlias'} = "";
-				}
-			}
+			my $ifType_name = SysAdmin::SNMP::_interface_type_sub($ifType_response->{$ifType_index});
+			$interfaces_to_return{$key}{'ifType_name'} = $ifType_name;			
 		}
-		return \%interfaces_to_return;
+		else{
+			$interfaces_to_return{$key}{'ifType'} = "N/A";
+			$interfaces_to_return{$key}{'ifType_name'} = "N/A";
+		}
+		if (defined( $ifAdminStatus_response = $session->get_request($ifAdminStatus_index)) ){
+			$interfaces_to_return{$key}{'ifAdminStatus'} = $ifAdminStatus_response->{$ifAdminStatus_index};
+		}
+		else{
+			$interfaces_to_return{$key}{'ifAdminStatus'} = "N/A";
+		}
+		if (defined( $ifOperStatus_response = $session->get_request($ifOperStatus_index)) ){
+			$interfaces_to_return{$key}{'ifOperStatus'} = $ifOperStatus_response->{$ifOperStatus_index};
+		}
+		else{
+			$interfaces_to_return{$key}{'ifOperStatus'} = "N/A";
+		}
+		if (defined( $ifAlias_response = $session->get_request($ifAlias_index)) ){
+			$interfaces_to_return{$key}{'ifAlias'} = $ifAlias_response->{$ifAlias_index};
+		}
+		else{
+			$interfaces_to_return{$key}{'ifAlias'} = "N/A";
+		}
 	}
-	else{
-		print "## There was a problem communicating with the network device!\n";
-		exit 1;
-	}
+	return \%interfaces_to_return;
 }
 
 sub fetchActiveInterfaces {
 	
 	my ($self) = @_;
 	
-	my $hostname = $self->{_ipAddress};
-	my $community = $self->{_snmpCommunity};
-	
-	my $ifDescr = '.1.3.6.1.2.1.2.2.1.2';
-	my $ifType = '.1.3.6.1.2.1.2.2.1.3';
-	my $ifAdminStatus = '.1.3.6.1.2.1.2.2.1.7';
-	my $ifOperStatus = '.1.3.6.1.2.1.2.2.1.8';
-	my $ifAlias = '.1.3.6.1.2.1.31.1.1.1.18';
-	
-	my $snmp_object = new SysAdmin::SNMP(IP        => "$hostname",
-                                             COMMUNITY => "$community");
-	
-	
-	my $snmp_query_result_ref = $snmp_object->fetchInterfaces();
+	my $snmp_query_result_ref = SysAdmin::SNMP::fetchInterfaces($self);
 	
 	my %active_interfaces_in_equipment = ();
 	
@@ -214,26 +182,12 @@ sub fetchActiveInterfaces {
 		if($$snmp_query_result_ref{$key}{'ifAdminStatus'} =~ /(\d)/){
 			if($1 eq "1"){
 				
-				my $admin_status = "1";
-				my $oper_status = undef;
-				
-				if($$snmp_query_result_ref{$key}{'ifOperStatus'} =~ /(\d)/){
-					if($1 eq "1"){
-						$oper_status = "1";
-					}
-					else{
-						$oper_status = "$1";
-					}
-				}
-	
-				my $active_interfaces = $$snmp_query_result_ref{$key}{'ifDescr'};
-				my $active_interfaces_alias = $$snmp_query_result_ref{$key}{'ifAlias'};
-				
-				$active_interfaces_in_equipment{$key}{'id'} = $key;
+				$active_interfaces_in_equipment{$key}{'ifIndex'} = $key;
 				$active_interfaces_in_equipment{$key}{'ifDescr'} = $$snmp_query_result_ref{$key}{'ifDescr'};
 				$active_interfaces_in_equipment{$key}{'ifType'} = $$snmp_query_result_ref{$key}{'ifType'};
-				$active_interfaces_in_equipment{$key}{'ifAdminStatus'} = $admin_status;
-				$active_interfaces_in_equipment{$key}{'ifOperStatus'} = $oper_status;
+				$active_interfaces_in_equipment{$key}{'ifType_name'} = $$snmp_query_result_ref{$key}{'ifType_name'};
+				$active_interfaces_in_equipment{$key}{'ifAdminStatus'} = $$snmp_query_result_ref{$key}{'ifAdminStatus'};
+				$active_interfaces_in_equipment{$key}{'ifOperStatus'} = $$snmp_query_result_ref{$key}{'ifOperStatus'};
 				$active_interfaces_in_equipment{$key}{'ifAlias'} = $$snmp_query_result_ref{$key}{'ifAlias'};
 			}
 		}
@@ -242,35 +196,257 @@ sub fetchActiveInterfaces {
 	return \%active_interfaces_in_equipment;
 }
 
-sub checkValidOID {
+sub _interface_type_sub {
 	
-	my ($self, $oid_to_get) = @_;
-	
-	Carp::croak "No OID supplied" unless $oid_to_get;
-	
-	my $hostname = $self->{_ipAddress};
-	my $community = $self->{_snmpCommunity};
-	
-	my ($session, $error) = Net::SNMP->session(Hostname => $hostname, Community => $community);
-	
-	my $response = "NA";
-	my $scalar_to_return_from_sub = undef;
-	
-	if (!defined($session)) { 
-		print("## There was a problem communicating with the network device!\n\n");
-		exit 1;
-	}
-	
-	my $session_error = "VALID";
-	
-	if (!defined($response = $session->get_request($oid_to_get))) {
+	my ($id) = @_;
 
-		$session_error = $session->error;
-		
-	}
-	
-	$session->close;
-	return $session_error;
+	my %ifType_d = (
+		'1'=>'other',
+		'2'=>'regular1822',
+		'3'=>'hdh1822',
+		'4'=>'ddnX25',
+		'5'=>'rfc877x25',
+		'6'=>'ethernetCsmacd',
+		'7'=>'iso88023Csmacd',
+		'8'=>'iso88024TokenBus',
+		'9'=>'iso88025TokenRing',
+		'10'=>'iso88026Man',
+		'11'=>'starLan',
+		'12'=>'proteon10Mbit',
+		'13'=>'proteon80Mbit',
+		'14'=>'hyperchannel',
+		'15'=>'fddi',
+		'16'=>'lapb',
+		'17'=>'sdlc',
+		'18'=>'ds1',
+		'19'=>'e1',
+		'20'=>'basicISDN',
+		'21'=>'primaryISDN',
+		'22'=>'propPointToPointSerial',
+		'23'=>'ppp',
+		'24'=>'softwareLoopback',
+		'25'=>'eon',
+		'26'=>'ethernet-3Mbit',
+		'27'=>'nsip',
+		'28'=>'slip',
+		'29'=>'ultra',
+		'30'=>'ds3',
+		'31'=>'sip',
+		'32'=>'frame-relay',
+		'33'=>'rs232',
+		'34'=>'para',
+		'35'=>'arcnet',
+		'36'=>'arcnetPlus',
+		'37'=>'atm',
+		'38'=>'miox25',
+		'39'=>'sonet',
+		'40'=>'x25ple',
+		'41'=>'iso88022llc',
+		'42'=>'localTalk',
+		'43'=>'smdsDxi',
+		'44'=>'frameRelayService',
+		'45'=>'v35',
+		'46'=>'hssi',
+		'47'=>'hippi',
+		'48'=>'modem',
+		'49'=>'aal5',
+		'50'=>'sonetPath',
+		'51'=>'sonetVT',
+		'52'=>'smdsIcip',
+		'53'=>'propVirtual',
+		'54'=>'propMultiplexor',
+		'55'=>'100BaseVG',
+		'56'=>'fibreChannel',
+		'57'=>'hippiInterface',
+		'58'=>'frameRelayInterconnect',
+		'59'=>'aflane8023',
+		'60'=>'aflane8025',
+		'61'=>'cctEmul',
+		'62'=>'fastEther',
+		'63'=>'isdn',
+		'64'=>'v11',
+		'65'=>'v36',
+		'66'=>'g703at64k',
+		'67'=>'g703at2mb',
+		'68'=>'qllc',
+		'69'=>'fastEtherFX',
+		'70'=>'channel',
+		'71'=>'ieee80211',
+		'72'=>'ibm370parChan',
+		'73'=>'escon',
+		'74'=>'dlsw',
+		'75'=>'isdns',
+		'76'=>'isdnu',
+		'77'=>'lapd',
+		'78'=>'ipSwitch',
+		'79'=>'rsrb',
+		'80'=>'atmLogical',
+		'81'=>'ds0',
+		'82'=>'ds0Bundle',
+		'83'=>'bsc',
+		'84'=>'async',
+		'85'=>'cnr',
+		'86'=>'iso88025Dtr',
+		'87'=>'eplrs',
+		'88'=>'arap',
+		'89'=>'propCnls',
+		'90'=>'hostPad',
+		'91'=>'termPad',
+		'92'=>'frameRelayMPI',
+		'93'=>'x213',
+		'94'=>'adsl',
+		'95'=>'radsl',
+		'96'=>'sdsl',
+		'97'=>'vdsl',
+		'98'=>'iso88025CRFPInt',
+		'99'=>'myrinet',
+		'100'=>'voiceEM',
+		'101'=>'voiceFXO',
+		'102'=>'voiceFXS',
+		'103'=>'voiceEncap',
+		'104'=>'voiceOverIp',
+		'105'=>'atmDxi',
+		'106'=>'atmFuni',
+		'107'=>'atmIma',
+		'108'=>'pppMultilinkBundle',
+		'109'=>'ipOverCdlc',
+		'110'=>'ipOverClaw',
+		'111'=>'stackToStack',
+		'112'=>'virtualIpAddress',
+		'113'=>'mpc',
+		'114'=>'ipOverAtm',
+		'115'=>'iso88025Fiber',
+		'116'=>'tdlc',
+		'117'=>'gigabitEthernet',
+		'118'=>'hdlc',
+		'119'=>'lapf',
+		'120'=>'v37',
+		'121'=>'x25mlp',
+		'122'=>'x25huntGroup',
+		'123'=>'trasnpHdlc',
+		'124'=>'interleave',
+		'125'=>'fast',
+		'126'=>'ip',
+		'127'=>'docsCableMaclayer',
+		'128'=>'docsCableDownstream',
+		'129'=>'docsCableUpstream',
+		'130'=>'a12MppSwitch',
+		'131'=>'tunnel',
+		'132'=>'coffee',
+		'133'=>'ces',
+		'134'=>'atmSubInterface',
+		'135'=>'l2vlan',
+		'136'=>'l3ipvlan',
+		'137'=>'l3ipxvlan',
+		'138'=>'digitalPowerline',
+		'139'=>'mediaMailOverIp',
+		'140'=>'dtm',
+		'141'=>'dcn',
+		'142'=>'ipForward',
+		'143'=>'msdsl',
+		'144'=>'ieee1394',
+		'145'=>'if-gsn',
+		'146'=>'dvbRccMacLayer',
+		'147'=>'dvbRccDownstream',
+		'148'=>'dvbRccUpstream',
+		'149'=>'atmVirtual',
+		'150'=>'mplsTunnel',
+		'151'=>'srp',
+		'152'=>'voiceOverAtm',
+		'153'=>'voiceOverFrameRelay',
+		'154'=>'idsl',
+		'155'=>'compositeLink',
+		'156'=>'ss7SigLink',
+		'157'=>'propWirelessP2P',
+		'158'=>'frForward',
+		'159'=>'rfc1483',
+		'160'=>'usb',
+		'161'=>'ieee8023adLag',
+		'162'=>'bgppolicyaccounting',
+		'163'=>'frf16MfrBundle',
+		'164'=>'h323Gatekeeper',
+		'165'=>'h323Proxy',
+		'166'=>'mpls',
+		'167'=>'mfSigLink',
+		'168'=>'hdsl2',
+		'169'=>'shdsl',
+		'170'=>'ds1FDL',
+		'171'=>'pos',
+		'172'=>'dvbAsiIn',
+		'173'=>'dvbAsiOut',
+		'174'=>'plc',
+		'175'=>'nfas',
+		'176'=>'tr008',
+		'177'=>'gr303RDT',
+		'178'=>'gr303IDT',
+		'179'=>'isup',
+		'180'=>'propDocsWirelessMaclayer',
+		'181'=>'propDocsWirelessDownstream',
+		'182'=>'propDocsWirelessUpstream',
+		'183'=>'hiperlan2',
+		'184'=>'propBWAp2Mp',
+		'185'=>'sonetOverheadChannel',
+		'186'=>'digitalWrapperOverheadChannel',
+		'187'=>'aal2',
+		'188'=>'radioMAC',
+		'189'=>'atmRadio',
+		'190'=>'imt',
+		'191'=>'mvl',
+		'192'=>'reachDSL',
+		'193'=>'frDlciEndPt',
+		'194'=>'atmVciEndPt',
+		'195'=>'opticalChannel',
+		'196'=>'opticalTransport',
+		'197'=>'propAtm',
+		'198'=>'voiceOverCable',
+		'199'=>'infiniband',
+		'200'=>'teLink',
+		'201'=>'q2931',
+		'202'=>'virtualTg',
+		'203'=>'sipTg',
+		'204'=>'sipSig',
+		'205'=>'docsCableUpstreamChannel',
+		'206'=>'econet',
+		'207'=>'pon155',
+		'208'=>'pon622',
+		'209'=>'bridge',
+		'210'=>'linegroup',
+		'211'=>'voiceEMFGD',
+		'212'=>'voiceFGDEANA',
+		'213'=>'voiceDID',
+		'214'=>'mpegTransport',
+		'215'=>'sixToFour',
+		'216'=>'gtp',
+		'217'=>'pdnEtherLoop1',
+		'218'=>'pdnEtherLoop2',
+		'219'=>'opticalChannelGroup',
+		'220'=>'homepna',
+		'221'=>'gfp',
+		'222'=>'ciscoISLvlan',
+		'223'=>'actelisMetaLOOP',
+		'224'=>'fcipLink',
+		'225'=>'rpr',
+		'226'=>'qam',
+		'227'=>'lmp',
+		'228'=>'cblVectaStar',
+		'229'=>'docsCableMCmtsDownstream',
+		'230'=>'adsl2',
+		'231'=>'macSecControlledIF',
+		'232'=>'macSecUncontrolledIF',
+		'233'=>'aviciOpticalEther',
+		'234'=>'atmbond',
+		'235'=>'voiceFGDOS',
+		'236'=>'mocaVersion1',
+		'237'=>'ieee80216WMAN',
+		'238'=>'adsl2plus'
+	);
+	return $ifType_d{$id};
+}
+
+sub clear {
+	my $self = shift;
+	$self->ip(0);
+	$self->community(0);
 }
 
 1;

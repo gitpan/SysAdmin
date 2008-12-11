@@ -1,34 +1,21 @@
 
 package SysAdmin::File;
-use strict;
+use Moose;
 
-use SysAdmin;
+extends 'SysAdmin';
 use IO::File;
-use Carp;
 
-use vars qw(@ISA $VERSION);
+our $VERSION = 0.03;
 
-our @ISA = qw(SysAdmin);    # inherits from SysAdmin
-our $VERSION = 0.02;
+has 'name' => (isa => 'Str', is => 'rw', required => 1);
 
-sub new {
-	my $class = shift;
-
-	my $self = {
-		_file => shift
-	};
-	    
-	Carp::croak "## WARNING ##\n No \"Filename\" supplied! Please, state filename for proper utilization of this module" unless $self->{_file};
-	
-	bless $self, $class;
-	return $self;
-}
+__PACKAGE__->meta->make_immutable;
 
 sub readFile {
 	
 	my ($self) = @_;
 
-	my $filename = $self->{_file};
+	my $filename = $self->name();
 	
 	if (-r $filename){
 	
@@ -52,7 +39,7 @@ sub writeFile {
 	
 	my ($self, $array_ref) = @_;
 	
-	my $filename = $self->{_file};
+	my $filename = $self->name();
 	
 	my @array_to_return = ();
 	
@@ -70,7 +57,7 @@ sub appendFile {
 	
 	my ($self, $array_ref) = @_;
 	
-	my $filename = $self->{_file};
+	my $filename = $self->name();
 	
 	if (-w $filename){
 		my @array_to_return = ();
@@ -94,7 +81,7 @@ sub appendFile {
 sub fileExist {
 	my ($self) = @_;
 	
-	my $filename = $self->{_file};
+	my $filename = $self->name();
 	
 	my $what_to_return = undef;
 	
@@ -108,7 +95,7 @@ sub fileExist {
 sub directoryExist {
 	my ($self) = @_;
 	
-	my $filename = $self->{_file};
+	my $filename = $self->name();
 	
 	my $what_to_return = undef;
 	
@@ -117,6 +104,11 @@ sub directoryExist {
 	}
 	
 	return $what_to_return;
+}
+
+sub clear {
+	my $self = shift;
+	$self->name(0);
 }
 
 1;
@@ -131,7 +123,7 @@ SysAdmin::File - Perl IO::File wrapper module..
 	use SysAdmin::File;
 	
 	## Declare file object
-	my $file_object = new SysAdmin::File("/tmp/test.txt");
+	my $file_object = new SysAdmin::File(name => "/tmp/test.txt");
 	
 	## Read file and dump contents to array reference
 	my $array_ref = $file_object->readFile();
@@ -156,7 +148,7 @@ SysAdmin::File - Perl IO::File wrapper module..
 	}
 	
 	## Declare directory object
-	my $directory_object = new SysAdmin::File("/tmp");
+	my $directory_object = new SysAdmin::File(name => "/tmp");
 	
 	## Check Directory Exist
 	my $directory_exist = $directory_object->directoryExist();
@@ -178,7 +170,7 @@ SysAdmin::File uses IO::File to interact with files.
 =head2 C<new()>
 
 	## Declare file object
-	my $file_object = new SysAdmin::File("/tmp/test.txt");
+	my $file_object = new SysAdmin::File(name => "/tmp/test.txt");
 	
 =head2 C<readFile()>
 
@@ -209,7 +201,7 @@ SysAdmin::File uses IO::File to interact with files.
 =head2 C<directoryExist()>
 	
 	## Declare directory object
-	my $directory_object = new SysAdmin::File("/tmp");
+	my $directory_object = new SysAdmin::File(name => "/tmp");
 	
 	## Check Directory Exist
 	my $directory_exist = $directory_object->directoryExist();

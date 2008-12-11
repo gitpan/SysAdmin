@@ -4,12 +4,13 @@ MANIFEST
 README
 t/SysAdmin.t
 lib/SysAdmin.pm
+lib/SysAdmin/Date.pm
 lib/SysAdmin/DB.pm
-lib/SysAdmin/Expect.pm
-lib/SysAdmin/Expect/Occam.pm
 lib/SysAdmin/File.pm
 lib/SysAdmin/SMTP.pm
 lib/SysAdmin/SNMP.pm
+scripts/check_socket.pl
+scripts/date.pl
 scripts/db/dbd_test.db
 scripts/dbd_mysql.pl
 scripts/dbd_oracle.pl

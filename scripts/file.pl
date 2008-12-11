@@ -3,9 +3,7 @@ use strict;
 
 use SysAdmin::File;
 
-my $object = new SysAdmin::File("/tmp/test_file.txt");
-
-
+my $object = new SysAdmin::File(name => "/tmp/test_file.txt");
 
 ## Write data to file
 my @write_to_file = ("First data written using writeFile\n");

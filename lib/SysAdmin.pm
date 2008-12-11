@@ -1,10 +1,98 @@
+
 package SysAdmin;
 
-use 5.008008;
-use strict;
-use warnings;
+use 5.008;
 
-our $VERSION = '0.08';
+our $VERSION = '0.11';
+
+#use Moose;
+use IO::Socket;
+use Carp;
+
+## For SysAdmin::Date
+use POSIX qw(strftime);
+
+=head2 _default_socket_ports
+    
+=cut
+
+sub _check_socket {
+	my ($host, $port) = @_;
+	
+	my $test_port  = SysAdmin::_default_socket_ports($port,"port");
+	my $test_proto = SysAdmin::_default_socket_ports($port,"proto");
+	
+	my $socket_object = new IO::Socket::INET (
+		PeerAddr => "$host",
+		PeerPort => "$test_port",
+		Proto    => "$test_proto",
+		);
+	
+	if($socket_object){
+		return 1;
+	}
+	else{
+		return 0;
+	}
+}
+
+=head2 _default_socket_ports
+    
+=cut
+
+sub _default_socket_ports {
+	my ($port, $proto) = @_;
+	
+	my %known_port_hash = (
+		                    80 => {
+								"port"  => "80",
+	                            "proto" => "tcp"
+							},
+		                    5432 => {
+								"port"  => "5432",
+	                            "proto" => "tcp"
+							},
+		                    3306 => {
+								"port"  => "3306",
+	                            "proto" => "tcp"
+							},
+		                    1521 => {
+								"port"  => "1521",
+	                            "proto" => "tcp"
+							},
+		                    161 => {
+								"port"  => "161",
+	                            "proto" => "udp"
+							},
+		                    25 => {
+								"port"  => "23",
+	                            "proto" => "tcp"
+							}
+						  );
+	
+	return $known_port_hash{$port}{$proto};
+}
+
+=head2 generate_random_string
+    
+=cut
+
+sub _generate_random_string {
+
+	## Use my $random_password = &generate_random_string("8");
+
+	my ($length_of_randomstring) = @_;
+	
+	my $random_string = undef;
+                         
+	my @chars=('a'..'z','A'..'Z','0'..'9','_');
+	foreach (1..$length_of_randomstring) {
+		# rand @chars will generate a random
+		# number between 0 and scalar @chars
+		$random_string.=$chars[rand @chars];
+	}
+	return $random_string;
+}
 
 1;
 __END__
@@ -28,10 +116,10 @@ SysAdmin - Parent class for SysAdmin wrapper modules.
   my $message_body = "Test Message";
   my $email_recipients = ["test_receiver\@test.com"];
 	
-  $smtp_object->sendEmail("FROM"    => "$from_address",
-                          "TO"      => "$email_recipients",
-                          "SUBJECT" => "$subject",
-                          "BODY"    => "$message_body");
+  $smtp_object->sendEmail(from    => $from_address,
+                          to      => $email_recipients,
+                          subject => $subject,
+                          body    => $message_body);
   
   ---
 	
@@ -44,8 +132,8 @@ SysAdmin - Parent class for SysAdmin wrapper modules.
   my $ip_address = "192.168.1.1";
   my $community  = "public";
 	
-  my $snmp_object = new SysAdmin::SNMP(IP        => "$ip_address",
-                                       COMMUNITY => "$community");
+  my $snmp_object = new SysAdmin::SNMP(ip        => $ip_address,
+                                       community => $community);
 				  
   my $sysName = '.1.3.6.1.2.1.1.5.0';
 	
@@ -75,11 +163,11 @@ SysAdmin - Parent class for SysAdmin wrapper modules.
   ##
   ###
 	
-  my $dbd_object = new SysAdmin::DB::Pg("DB"          => "$db",
-                                        "DB_USERNAME" => "$username",
-                                        "DB_PASSWORD" => "$password",
-                                        "DB_HOST"     => "$host",
-                                        "DB_PORT"     => "$port");
+  my $dbd_object = new SysAdmin::DB::Pg(db          => $db,
+                                        db_username => $username,
+                                        db_password => $password,
+                                        db_host     => $host,
+                                        db_port     => $port);
 	
   ## Select Table Data
 	
@@ -141,7 +229,7 @@ SysAdmin - Parent class for SysAdmin wrapper modules.
   use SysAdmin::File;
 	
   ## Declare file object
-  my $file_object = new SysAdmin::File("/tmp/test.txt");
+  my $file_object = new SysAdmin::File(name => "/tmp/test.txt");
 	
   ## Read file and dump contents to array reference
   my $array_ref = $file_object->readFile();
@@ -166,7 +254,7 @@ SysAdmin - Parent class for SysAdmin wrapper modules.
   }
 	
   ## Declare directory object
-  my $directory_object = new SysAdmin::File("/tmp");
+  my $directory_object = new SysAdmin::File(name => "/tmp");
 	
   ## Check Directory Exist
   my $directory_exist = $directory_object->directoryExist();

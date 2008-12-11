@@ -1,85 +1,37 @@
 
 package SysAdmin::DB;
-use strict;
+use Moose;
+use Moose::Util::TypeConstraints;
 
-use SysAdmin;
-use Carp;
+extends 'SysAdmin';
 use locale;
 use DBI;
 
-use vars qw(@ISA $VERSION);
+our $VERSION = 0.09;
 
-our @ISA = qw(SysAdmin);    # inherits from SysAdmin
-our $VERSION = 0.06;
 
-sub new {
-	my $class = shift;
-	
-	my %attr = @_;
-	
-	###
-	## Supported Attribute List
-	#
-	# DB = DataBase
-	# DB_USERNAME = DataBase Username
-	# DB_PASSWORD = DataBase Password
-	# DB_HOST     = DataBase Host
-	# DB_PORT     = DataBase Port
-	# DB_DRIVER   = DBD driver to use
-	#
-	##
-	###
-	
-	Carp::croak "## WARNING ##\n No \"DB\" value supplied! Please, state value for proper connection to DataBase." unless $attr{"DB"};
-	Carp::croak "## WARNING ##\n No \"DB_DRIVER\" value supplied! Please, state value for proper connection to DataBase." unless $attr{"DB_DRIVER"};
-	
-	## Convert user input to lower case, to better match conditionals.
-	my $check_db_driver_to_use = lc($attr{"DB_DRIVER"});
-	
-	## State DBD driver value to pass to $self
-	my $db_driver_to_use = undef;
-	
-	## In case $attr{"DB_PORT"} is empty
-	my $port_to_use = "";
-	
-	if($check_db_driver_to_use eq "pg"){
-		$port_to_use = "5432";
-		$db_driver_to_use = "Pg";
-	}
-	if($check_db_driver_to_use eq "mysql"){
-		$port_to_use = "3306";
-		$db_driver_to_use = "mysql";
-	}
-	if($check_db_driver_to_use eq "sqlite"){
-		$db_driver_to_use = "SQLite";
-	}
-	if($check_db_driver_to_use eq "oracle"){
-		$db_driver_to_use = "Oracle";
-	}
-	
-	my $self = {
-		_db             => $attr{"DB"},
-		_db_username    => $attr{"DB_USERNAME"},
-		_db_password    => $attr{"DB_PASSWORD"},
-		_db_host        => $attr{"DB_HOST"} || "localhost", ## If empty
-		_db_port        => $attr{"DB_PORT"} || $port_to_use,
-		_db_driver      => $db_driver_to_use
-	};
-	    
-	bless $self, $class;
-	return $self;
-}
+subtype 'CheckSupportedDBDriver'
+  => as 'Str'
+  => where { SysAdmin::DB::_check_supported_db_driver($_) }
+  => message { SysAdmin::DB::_driver_error($_) };
+
+has 'db'          => (isa => 'Str', is => 'rw', required => 1);
+has 'db_driver'   => (isa => 'CheckSupportedDBDriver', is => 'rw', required => 1);
+
+has 'db_username' => (isa => 'Str', is => 'rw');
+has 'db_password' => (isa => 'Str', is => 'rw');
+has 'db_host'     => (isa => 'Str', is => 'rw', default => "localhost");
+has 'db_port'     => (isa => 'Str', is => 'rw');
+
+__PACKAGE__->meta->make_immutable;
+
+my @currently_supported_drivers = ("mysql","Oracle","Pg","SQLite");
 
 sub fetchTable {
 
 	my ($self,$db_select) = @_;
 	
-	my $db_database    = $self->{_db};
-	my $db_username    = $self->{_db_username};
-	my $db_password    = $self->{_db_password};
-	my $db_host        = $self->{_db_host};
-	my $db_port        = $self->{_db_port};
-	my $db_driver      = $self->{_db_driver};
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($self->db_driver);
 	
 	my $table = undef; ## For return value
 	
@@ -94,18 +46,7 @@ sub fetchTable {
 			## Works in most DB table extractions.
 			##
 			
-			my $dbh = undef;
-			
-			if($db_driver eq "SQLite"){
-				$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 1 }) or die "Could not connect to $db_database";
-			}
-			if($db_driver eq "Oracle"){
-				$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password);
-			}
-			else{
-				## MySQL and PostgreSQL use similar syntax
-				$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;","$db_username","$db_password") or die "Could not connect to $db_database";
-			}
+			my $dbh = SysAdmin::DB::_proper_dbh_select($self);
 			
 			my $sth = $dbh->prepare($db_select) or die "Couldn't prepare statement!!!";
 			$sth->execute() or die ("Cannot execute statement!!!");
@@ -117,21 +58,23 @@ sub fetchTable {
 			if($db_driver ne "SQLite"){
 				$dbh->disconnect;
 			}
+			
+			return $table;
+		}
+		else{
+			Carp::croak "## WARNING ##\nCurrently, \"SELECT\" SQL Statements supported!";
 		}
 	}
-	return $table;
+	else{
+		Carp::croak "## WARNING ##\nNo \"SELECT\" SQL Statement supplied!";
+	}
 }
 
 sub fetchRow {
 	
 	my ($self,$db_select) = @_;
 	
-	my $db_database    = $self->{_db};
-	my $db_username    = $self->{_db_username};
-	my $db_password    = $self->{_db_password};
-	my $db_host        = $self->{_db_host};
-	my $db_port        = $self->{_db_port};
-	my $db_driver      = $self->{_db_driver};
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($self->db_driver);
 	
 	my $row = undef; ## For return value
 	
@@ -146,27 +89,24 @@ sub fetchRow {
 			## Works in most DB table extractions.
 			##
 			
-			my $dbh = undef;
-			
-			if($db_driver eq "SQLite"){
-				$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 1 }) or die "Could not connect to $db_database";
-			}
-			if($db_driver eq "Oracle"){
-				$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password);
-			}
-			else{
-				## MySQL and PostgreSQL use similar syntax
-				$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;","$db_username","$db_password") or die "Could not connect to $db_database";
-			}
+			my $dbh = SysAdmin::DB::_proper_dbh_select($self);
 			
 			$row = $dbh->selectrow_array("$db_select");
 			
 			if($db_driver ne "SQLite"){
 				$dbh->disconnect;
 			}
+			
+			return $row;
+			
+		}
+		else{
+			Carp::croak "## WARNING ##\nCurrently, \"SELECT\" SQL Statements supported!";
 		}
 	}
-	return $row;
+	else{
+		Carp::croak "## WARNING ##\nNo \"SELECT\" SQL Statement supplied!";
+	}
 }
 
 ## Find better name
@@ -176,12 +116,7 @@ sub _manipulateData {
 	
 	## $attributes_ref must not be empty!!!
 	
-	my $db_database    = $self->{_db};
-	my $db_username    = $self->{_db_username};
-	my $db_password    = $self->{_db_password};
-	my $db_host        = $self->{_db_host};
-	my $db_port        = $self->{_db_port};
-	my $db_driver      = $self->{_db_driver};
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($self->db_driver);
 	
 	## If $db_select is defined
 	if($db_insert){
@@ -189,54 +124,81 @@ sub _manipulateData {
 		## Converts to lower case to verify if its a INSERT/UPDATE/DELETE SQL statement.
 		if(($db_insert =~ /insert\s.*/i) || ($db_insert =~ /update\s.*/i) || ($db_insert =~ /delete\s.*/i)){
 			
+			## Matches SQLs with ? for substitution
+			#if($db_insert =~ /.*[\(\,\=]\s*\?.*/i){}
+			
+			## Matches SQLs with ? within ''
+			#if($db_insert =~ /.*\(\'.*\?.*\'.*\).*/i){}
+				
 			## Assumes using "?" for attribute substitution.
-			my $attributes_ref_length = @$attributes_ref;
+			if($attributes_ref){
 				
-			if($attributes_ref_length != 0){
-				
-				##
-				## Mostly taken from DBI/DBD module examples. 
-				## Works in most DB table extractions.
-				##
-				
-				my $dbh = undef;
-				## Return ID of last insert
-				my $last_id_inserted = undef;
-				my $rv = undef;
-				
-				if($db_driver eq "SQLite"){
-					$dbh = DBI->connect("dbi:SQLite:$db_database",{ AutoCommit => 0 }) or die "Could not connect to $db_database";
-				}
-				if($db_driver eq "Oracle"){
-					$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password,{ AutoCommit => 1 });
-				}
-				else{
-					## MySQL and PostgreSQL use similar syntax
-					$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;",
-						             "$db_username","$db_password",
-							     { RaiseError => 0, AutoCommit => 1 }) or die "Could not connect to $db_database";
-				}
-				eval {
-					my $sth = $dbh->prepare($db_insert) or die "Couldn't prepare statement!!!";
-					$sth->execute(@$attributes_ref) or die "Cannot execute statement!!!";
+				## Checks array lenght, to verify if it has values for transaction insert
+				my $attributes_ref_length = @$attributes_ref;
 					
-					if($db_insert =~ /insert into (\w+)\s.*/i){
-						$last_id_inserted = &_fetchLastId($self,$dbh,$1);
+				if($attributes_ref_length != 0){
+					
+					## Database handler
+					my $dbh_with_attributes = SysAdmin::DB::_proper_dbh_insert($self);
+					
+					## Return ID of last insert
+					my $last_id_inserted_with_attributes = undef;
+					
+					eval {
+						my $sth_with_attributes = $dbh_with_attributes->prepare($db_insert) or die "Couldn't prepare statement!!!";
+						$sth_with_attributes->execute(@$attributes_ref) or die "Cannot execute statement!!!";
+						
+						## Use regex to get table name from insert SQL
+						if($db_insert =~ /insert into (\w+)\s.*/i){
+							$last_id_inserted_with_attributes = SysAdmin::DB::_fetchLastId($self,$dbh_with_attributes,$1);
+						}
+						
+						$sth_with_attributes->finish;
+					};
+					
+					if ($@) {
+						$dbh_with_attributes->rollback();
+						die $@;
 					}
 					
-					$sth->finish;
-				};
-				
-				if ($@) {
-					$dbh->rollback();
-					die $@;
+					if($db_driver ne "SQLite"){
+						$dbh_with_attributes->disconnect;
+					}
+					
+					return $last_id_inserted_with_attributes;
 				}
+			}
+			
+			## Should match SQLs without ? for substitution
+			## Taking risk in using regex for this match
+			
+			elsif($db_insert !~ /.*[\(\,\=]\s*\?.*/i){
+				
+				## Database handler
+				my $dbh_without_attributes = SysAdmin::DB::_proper_dbh_insert($self);
+				
+				## Return ID of last insert
+				my $last_id_inserted_without_attributes = undef;
+				
+				my $sth_without_attributes = $dbh_without_attributes->prepare($db_insert) or die "Couldn't prepare statement!!!";
+				$sth_without_attributes->execute() or die "Cannot execute statement!!!";
+				
+				## Use regex to get table name from insert SQL
+				if($db_insert =~ /insert into (\w+)\s.*/i){
+					$last_id_inserted_without_attributes = SysAdmin::DB::_fetchLastId($self,$dbh_without_attributes,$1);
+				}
+				
+				$sth_without_attributes->finish;
 				
 				if($db_driver ne "SQLite"){
-					$dbh->disconnect;
+					$dbh_without_attributes->disconnect;
 				}
 				
-				return $last_id_inserted;
+				return $last_id_inserted_without_attributes;
+				
+			}
+			else{
+				Carp::croak "## WARNING ##\nNo valid attributes defined for Insert/Update/Delete!";
 			}
 		}
 	}
@@ -246,59 +208,157 @@ sub insertData {
 	
 	my ($self,$db_insert,$attributes_ref) = @_;
 	
-	&_manipulateData($self,$db_insert,$attributes_ref);
+	SysAdmin::DB::_manipulateData($self,$db_insert,$attributes_ref);
 }
 
 sub updateData {
 	
 	my ($self,$db_update,$attributes_ref) = @_;
 	
-	&_manipulateData($self,$db_update,$attributes_ref);
+	SysAdmin::DB::_manipulateData($self,$db_update,$attributes_ref);
 }
 
 sub deleteData {
 	
 	my ($self,$db_delete,$attributes_ref) = @_;
 	
-	&_manipulateData($self,$db_delete,$attributes_ref);
+	SysAdmin::DB::_manipulateData($self,$db_delete,$attributes_ref);
 }
 
 sub _fetchLastId {
 	my ($self,$dbh,$db_table) = @_;
 	
-	my $db_driver = $self->{_db_driver};
+	my $db_driver_input = $self->db_driver;
 	
-	my $last_insert_id = undef;
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($db_driver_input);
 	
-	if($db_driver eq "Pg"){
-		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
-	}
-	if($db_driver eq "mysql"){
-		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
-	}
-	if($db_driver eq "SQLite"){
-		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
-	}
-	if($db_driver eq "Oracle"){
-		$last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
-	}
-	if($db_driver ne "SQLite"){
-		$dbh->disconnect;
-	}
+	my $last_insert_id = $dbh->last_insert_id(undef,undef,"$db_table",undef);
 	
 	return $last_insert_id;
 }
 
-sub close {
+sub _default_db_ports {
+	my ($driver) = @_;
+	
+	my %supported_ports = ("Pg"     => "5432",
+		                   "mysql"  => "3306",
+						   "Oracle" => "1521");
+
+	return $supported_ports{$driver};
+}
+
+sub _check_supported_db_driver {
+	
+	my ($driver) = @_;
+	
+	## Test for supported Drivers
+	my $user_input = lc($driver);
+	
+	my %supported_drivers = ("pg"     => "Pg",
+		                     "mysql"  => "mysql",
+						     "sqlite" => "SQLite",
+							 "oracle" => "Oracle");
+
+	return $supported_drivers{$user_input};
+}
+
+sub _proper_dbh_select {
 	my ($self) = @_;
 	
-	$self->{_db} = undef;
-	$self->{_db_username} = undef;
-	$self->{_db_password} = undef;
-	$self->{_db_host} = undef;
-	$self->{_db_port} = undef;
-	$self->{_db_driver} = undef;
-	$self->{_need_user_pass} = undef;
+	my $db_database     = $self->db;
+	my $db_username     = $self->db_username;
+	my $db_password     = $self->db_password;
+	my $db_host         = $self->db_host;
+	my $db_port         = $self->db_port;
+	my $db_driver_input = $self->db_driver;
+	
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($db_driver_input);
+	
+	my $dbh = undef;
+	
+	if($db_driver eq "SQLite"){
+		$dbh = DBI->connect("dbi:SQLite:$db_database") 
+							or die "Could not connect to $db_database";
+	}
+	elsif($db_driver eq "Oracle"){
+		$dbh = DBI->connect("dbi:Oracle:$db_database", $db_username,$db_password) 
+							or die "Could not connect to $db_database";
+	}
+	else{
+		## MySQL and PostgreSQL use similar syntax
+		$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;",
+			                "$db_username","$db_password") or die "Could not connect to $db_database";
+	}
+	
+	return $dbh;
+}
+
+sub _proper_dbh_insert {
+	my ($self) = @_;
+	
+	my $db_database     = $self->db;
+	my $db_username     = $self->db_username;
+	my $db_password     = $self->db_password;
+	my $db_host         = $self->db_host;
+	my $db_port         = $self->db_port;
+	my $db_driver_input = $self->db_driver;
+	
+	my $db_driver = SysAdmin::DB::_check_supported_db_driver($db_driver_input);
+	
+	## Database handler
+	my $dbh = undef;
+	
+	if($db_driver eq "SQLite"){
+		$dbh = DBI->connect("dbi:SQLite:$db_database",
+							{ AutoCommit => 1 }) or die "Could not connect to $db_database";
+	}
+	elsif($db_driver eq "Oracle"){
+		$dbh = DBI->connect("dbi:Oracle:$db_database", 
+							$db_username,$db_password,
+							{ AutoCommit => 1 }) or die "Could not connect to $db_database";
+	}
+	else{
+		## MySQL and PostgreSQL use similar syntax
+		$dbh = DBI->connect("dbi:$db_driver:dbname=$db_database;host=$db_host;port=$db_port;",
+							"$db_username","$db_password",
+							{ RaiseError => 0, AutoCommit => 1 }) or die "Could not connect to $db_database";
+	}
+	
+	return $dbh;
+}
+
+sub _driver_error {
+
+	my ($error) = @_;
+	
+	my $error_to_return = undef;
+
+		$error_to_return = <<END;
+
+## WARNING ##
+
+This driver "$error" is currently not supported!
+
+Please use:
+
+@currently_supported_drivers
+
+END
+	
+	return $error_to_return . "Error";
+
+}
+
+sub clear {
+	my $self = shift;
+	
+	$self->db(0);
+	$self->db_username(0);
+	$self->db_password(0);
+	$self->db_host(0);
+	$self->db_port(0);
+	$self->db_driver(0);
+	
 }
 
 1;
@@ -329,12 +389,12 @@ SysAdmin::DB - Perl DBI/DBD wrapper module..
   ##
   ###
 	
-  my $dbd_object = new SysAdmin::DB("DB"          => "$db",
-                                    "DB_USERNAME" => "$username",
-                                    "DB_PASSWORD" => "$password",
-                                    "DB_HOST"     => "$host",
-                                    "DB_PORT"     => "$port",
-                                    "DB_DRIVER"   => "$driver");
+  my $dbd_object = new SysAdmin::DB(db          => $db,
+                                    db_username => $username,
+                                    db_password => $password,
+                                    db_host     => $host,
+                                    db_port     => $port,
+                                    db_driver   => $driver);
   ###
   ## DB and DB_DRIVER are always required!
   ###
@@ -347,8 +407,8 @@ SysAdmin::DB - Perl DBI/DBD wrapper module..
   ### For SQLite, simply declare DB and DB_DRIVER, example:
   ##
   ## my $db = "/tmp/dbd_test.db";
-  ## my $dbd_object = new SysAdmin::DB("DB"       => "$db",
-  ##                                   "DB_DRIVER => "sqlite");
+  ## my $dbd_object = new SysAdmin::DB(db        => $db,
+  ##                                   db_driver => sqlite);
   ##
   ###
 	
@@ -429,37 +489,37 @@ Currently DBD::Pg, DBD::mysql and DBD::SQLite are supported.
 
 =head2 C<new()>
 
-	my $dbd_object = new SysAdmin::DB("DB"          => "$db",
-                                      "DB_USERNAME" => "$username",
-                                      "DB_PASSWORD" => "$password",
-                                      "DB_HOST"     => "$host",
-                                      "DB_PORT"     => "$port",
-                                      "DB_DRIVER"   => "$driver");
+	my $dbd_object = new SysAdmin::DB(db          => $db,
+                                      db_username => $username,
+                                      db_password => $password,
+                                      db_host     => $host,
+                                      db_port     => $port,
+                                      db_driver   => $driver);
 
 Creates SysAdmin::DB object instance. Used to declare the database connection
 information.
 
-	"DB" => "$db"
+	db => $db
 
 State database name to connect to
 	
-	"DB_USERNAME" => "$username"
+	db_username => $username
 	
 State a privileged user to connect to the C<DB> database
 	
-	"DB_PASSWORD" => "$password",
+	db_password => $password,
 	
 State a privileged user's password to connect to the C<DB> database
 	
-	"DB_HOST"     => "$host"
+	db_host => $host
 
 State the IP address/Hostname of the database server
 
-	"DB_PORT"     => "$port"
+	db_port => $port
 	
 State the listening port of the database server. PostgreSQL 5432, MySQL 3306
 
-	"DB_DRIVER"   => "$driver"
+	db_driver => $driver
 
 State the database driver to use. Currently supported: Pg, mysql and SQLite
 
@@ -521,8 +581,11 @@ State the database driver to use. Currently supported: Pg, mysql and SQLite
 =head1 SEE ALSO
 
 DBI - Database independent interface for Perl
+
 DBD::Pg - PostgreSQL database driver for the DBI module
+
 DBD::MySQL - MySQL driver for the Perl5 Database Interface (DBI)
+
 DBD::SQLite - Self Contained RDBMS in a DBI Driver
 
 =head1 AUTHOR
